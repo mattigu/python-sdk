@@ -114,6 +114,11 @@ class MCPMultiClient:
         """Connect to a specific MCP server using its configuration"""
         session: ClientSession
 
+        # Applies to every request sent to this server, so a server that stops
+        # answering fails the request instead of hanging the caller forever.
+        # None keeps the SDK default of waiting indefinitely.
+        read_timeout = server_config.timeout
+
         if isinstance(server_config, MCPConfigurationServerStdio):
             # Handle stdio-based MCP server
             command = server_config.command
@@ -132,7 +137,9 @@ class MCPMultiClient:
 
             stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
             stdio, write = stdio_transport
-            session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
+            session = await self.exit_stack.enter_async_context(
+                ClientSession(stdio, write, read_timeout_seconds=read_timeout)
+            )
 
         elif isinstance(server_config, MCPConfigurationServerUrl):
             # Handle HTTP-based MCP server
@@ -152,7 +159,9 @@ class MCPMultiClient:
                 streamablehttp_client(url, headers=processed_headers)
             )
             read_stream, write_stream, get_session_id = http_transport
-            session = await self.exit_stack.enter_async_context(ClientSession(read_stream, write_stream))
+            session = await self.exit_stack.enter_async_context(
+                ClientSession(read_stream, write_stream, read_timeout_seconds=read_timeout)
+            )
         else:
             raise ValueError(f"Unsupported server configuration type: {type(server_config)}")
 

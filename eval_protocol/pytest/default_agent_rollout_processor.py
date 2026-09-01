@@ -37,15 +37,25 @@ logger = logging.getLogger(__name__)
 
 class Agent:
     """
-    A really simple agent that calls the model until no more tool calls are needed.
+    A really simple agent that calls the model until no more tool calls are needed,
+    or until ``max_turns`` model calls have been made.
     """
 
-    def __init__(self, model: str, row: EvaluationRow, config_path: str, logger: DatasetLogger):
+    def __init__(
+        self,
+        model: str,
+        row: EvaluationRow,
+        config_path: str,
+        logger: DatasetLogger,
+        max_turns: int = 30,
+    ):
         self.model = model
         self.evaluation_row: EvaluationRow = row
         self._policy = LiteLLMPolicy(model_id=model)
         self.mcp_client = MCPMultiClient(config_path=config_path) if config_path else None
         self.logger: DatasetLogger = logger
+        self.max_turns = max_turns
+        self._turns = 0
         self.usage = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -110,6 +120,7 @@ class Agent:
         """
         tools = await self._get_tools() if self.mcp_client else None
 
+        self._turns += 1
         message = await self._call_model(self.messages, tools)
         self.append_message_and_log(message)
         if message.tool_calls:
@@ -134,6 +145,15 @@ class Agent:
                 self.append_message_and_log(
                     Message(role="tool", content=tool_message_content, tool_call_id=tool_call_id)
                 )
+
+            # Stop once the turn budget is spent. The tool results above are already
+            # recorded, so the trajectory stays well-formed: every assistant message
+            # with tool_calls has its matching tool messages.
+            if self._turns >= self.max_turns:
+                logger.warning(
+                    f"Agent reached max turns ({self.max_turns}); ending rollout with tool calls outstanding."
+                )
+                return message.content
             return await self.call_agent()
         return message.content
 
@@ -260,6 +280,7 @@ class AgentRolloutProcessor(RolloutProcessor):
                 row=row,
                 config_path=config.mcp_config_path,
                 logger=config.logger,
+                max_turns=config.steps,
             )
             try:
                 await agent.setup()

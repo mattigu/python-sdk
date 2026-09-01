@@ -40,11 +40,20 @@ class Agent:
     A really simple agent that calls the model until no more tool calls are needed.
     """
 
-    def __init__(self, model: str, row: EvaluationRow, config_path: str, logger: DatasetLogger):
+    def __init__(
+        self,
+        model: str,
+        row: EvaluationRow,
+        config_path: str,
+        logger: DatasetLogger,
+        extra_env: Optional[Dict[str, str]] = None,
+    ):
         self.model = model
         self.evaluation_row: EvaluationRow = row
         self._policy = LiteLLMPolicy(model_id=model)
-        self.mcp_client = MCPMultiClient(config_path=config_path) if config_path else None
+        self.mcp_client = (
+            MCPMultiClient(config_path=config_path, extra_env=extra_env) if config_path else None
+        )
         self.logger: DatasetLogger = logger
         self.usage = {
             "prompt_tokens": 0,
@@ -255,11 +264,21 @@ class AgentRolloutProcessor(RolloutProcessor):
             # Normalize Fireworks model names for LiteLLM routing
             completion_params = normalize_fireworks_model_for_litellm(row.input_metadata.completion_params) or {}
             row.input_metadata.completion_params = completion_params
+            # Let the MCP servers spawned for this rollout identify which rollout
+            # they belong to. Rollouts run concurrently in one process and share a
+            # single MCP config, so the server has no other way to tell them apart.
+            # Always set, so servers can rely on it rather than needing a fallback.
+            # rollout_id is populated by ExecutionMetadata's default_factory.
+            rollout_id = row.execution_metadata.rollout_id
+            if rollout_id is None:
+                raise ValueError("row.execution_metadata.rollout_id must be set to run an agent rollout")
+
             agent = Agent(
                 model=completion_params["model"],
                 row=row,
                 config_path=config.mcp_config_path,
                 logger=config.logger,
+                extra_env={"EP_ROLLOUT_ID": rollout_id},
             )
             try:
                 await agent.setup()

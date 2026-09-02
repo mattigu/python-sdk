@@ -164,7 +164,7 @@ def evaluation_test(
         max_concurrent_rollouts: Maximum number of concurrent rollouts to run in parallel.
         max_concurrent_evaluations: Maximum number of concurrent evaluations to run in parallel.
         server_script_path: Path to the MCP server script to run (default: "examples/tau2_mcp/server.py").
-        steps: Number of rollout steps to execute (default: 30).
+        steps: Maximum number of rollout steps to execute (default: 30).
         mode: Evaluation mode. "pointwise" (default) applies test function to each row (rollout result).
             "groupwise" applies test function to a group of rollout results from the same original row (for use cases such as dpo/grpo).
             "all" applies test function to the whole dataset.

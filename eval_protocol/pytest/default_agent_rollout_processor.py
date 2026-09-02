@@ -119,10 +119,9 @@ class Agent:
                 tool_call_id = tool_call.id
                 tool_name = tool_call.function.name
                 tool_args = tool_call.function.arguments
-                tool_args_dict = json.loads(tool_args)
 
                 # Create a task for each tool call
-                task = asyncio.create_task(self._execute_tool_call(tool_call_id, tool_name, tool_args_dict))
+                task = asyncio.create_task(self._execute_tool_call(tool_call_id, tool_name, tool_args))
                 tool_tasks.append(task)
 
             # Execute all tool calls in parallel
@@ -200,13 +199,18 @@ class Agent:
         )
 
     async def _execute_tool_call(
-        self, tool_call_id: str, tool_name: str, tool_args_dict: dict
+        self, tool_call_id: str, tool_name: str, tool_args: str
     ) -> tuple[str, List[TextContent]]:
         """
         Execute a single tool call and return the tool_call_id and content.
         This method is designed to be used with asyncio.gather() for parallel execution.
         """
         assert self.mcp_client is not None, "MCP client is not initialized"
+        try:
+            tool_args_dict = json.loads(tool_args)
+        except json.JSONDecodeError as e:
+            return tool_call_id, [TextContent(text=f"Invalid JSON arguments for tool {tool_name}: {e}", type="text")]
+
         tool_result = await self.mcp_client.call_tool(tool_name, tool_args_dict)
         # Accept string errors from client and normalize to text content
         content = self._get_content_from_tool_result(tool_result)  # type: ignore[arg-type]

@@ -1,7 +1,7 @@
 import os
 import logging
 import importlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, ClassVar, Dict, List, Literal, Optional, TypedDict, Union, Callable, Sequence
 
@@ -1245,6 +1245,14 @@ class MCPConfigurationServerStdio(BaseModel):
     command: str  # command to run the MCP server
     args: List[str] = Field(default_factory=list)  # to pass to the command
     env: List[str] = Field(default_factory=list)  # List of environment variables to verify exist in the environment
+    timeout: Optional[timedelta] = Field(
+        default=None,
+        description=(
+            "How long to wait for a response from this server before failing the request. "
+            "A plain number is interpreted as seconds; an ISO 8601 duration string such as "
+            "'PT10M' also works. Omitted (the default) waits indefinitely."
+        ),
+    )
 
 
 class MCPConfigurationServerUrl(BaseModel):
@@ -1252,6 +1260,14 @@ class MCPConfigurationServerUrl(BaseModel):
 
     url: str  # url to the MCP server
     authorization: Optional[str] = None
+    timeout: Optional[timedelta] = Field(
+        default=None,
+        description=(
+            "How long to wait for a response from this server before failing the request. "
+            "A plain number is interpreted as seconds; an ISO 8601 duration string such as "
+            "'PT10M' also works. Omitted (the default) waits indefinitely."
+        ),
+    )
 
 
 class MCPMultiClientConfiguration(BaseModel):

@@ -37,12 +37,16 @@ class MCPMultiClient:
     Environment variables should instead be set in a .env file
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, extra_env: Optional[Dict[str, str]] = None):
         # Initialize session and client objects
         self.sessions: Dict[str, ClientSession] = {}
         self.tools_to_sessions: Dict[str, ClientSession] = {}
         self.exit_stack = AsyncExitStack()
         self.config = self._load_config(config_path)
+        # Extra variables to set in the environment of stdio servers spawned by
+        # this client. Callers running several clients in one process use this to
+        # give each spawned server its own context.
+        self.extra_env: Dict[str, str] = dict(extra_env) if extra_env else {}
 
     def _load_config(self, config_path: Optional[str] = None) -> MCPMultiClientConfiguration:
         """Load MCP server configuration from file or use default"""
@@ -128,7 +132,9 @@ class MCPMultiClient:
                 self._validate_environment_variables(server_name, env_config)
 
             # Use the current system environment (os.environ) - convert to plain dict for typing compatibility
-            server_params = StdioServerParameters(command=command, args=args, env=dict(os.environ))
+            server_env = dict(os.environ)
+            server_env.update(self.extra_env)
+            server_params = StdioServerParameters(command=command, args=args, env=server_env)
 
             stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
             stdio, write = stdio_transport

@@ -196,7 +196,15 @@ class MCPMultiClient:
     async def call_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Union[CallToolResult, str]:
         """Call a specific tool by name with arguments"""
 
-        session = self.tools_to_sessions[tool_name]
+        # A model can ask for a tool that doesn't exist. Tell it so it can correct
+        # itself, rather than raising and taking the whole rollout down. Worded
+        # distinctly from the failure below: this is a bad request from the caller,
+        # not the tool or the connection failing.
+        session = self.tools_to_sessions.get(tool_name)
+        if session is None:
+            available = ", ".join(sorted(self.tools_to_sessions)) or "none"
+            return f"Unknown tool {tool_name}. Available tools: {available}"
+
         try:
             result = await session.call_tool(tool_name, tool_args)
             return result
